@@ -5,20 +5,20 @@ on:
     inputs:
       framework_jar_url:
         description: 'URL to download framework.jar'
-        required: true
+        required: false
       services_jar_url:
         description: 'URL to download services.jar'
-        required: true
+        required: false
       miui_services_jar_url:
         description: 'URL to download miui-services.jar'
-        required: true
+        required: false
       miui_framework_jar_url:
         description: 'URL to download miui-framework.jar'
-        required: true
+        required: false
       android_api_level:
         description: 'Android API level'
         required: true
-        default: '34'
+        default: '30'
       core_patch:
         description: 'Core patch'
         required: true
