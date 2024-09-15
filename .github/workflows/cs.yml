@@ -1,4 +1,4 @@
-name: Modify services_jar1
+name: Modify services_jar
 
 on:
   workflow_dispatch:
@@ -178,9 +178,14 @@ jobs:
         mkdir -p out
         chmod +w moded_framework_services.zip
         mv moded_framework_services.zip out/
+        
+    - name: List files for debugging
+      run: |
+        ls -l
+        ls -l out/
 
     - name: 上传修改后的 services.jar
       uses: actions/upload-artifact@v3
       with:
         name: moded_framework_services.zip
-        path: moded_framework_services.zip
+        path: out/moded_framework_services.zip
