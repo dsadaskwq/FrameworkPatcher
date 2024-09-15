@@ -4,14 +4,14 @@ on:
   workflow_dispatch:
     inputs:
       services_jar_url:
-        description: 'URL to download services.jar'
+        description: '下载 services.jar 的 地址URL'
         required: true
       android_api_level:
-        description: 'Android API level'
+        description: 'Android API 级别'
         required: true
-        default: '34'
+        default: '30'
       core_patch:
-        description: 'Core patch'
+        description: '核心补丁 应用/不应用'
         required: true
         type: choice
         options:
@@ -19,10 +19,10 @@ on:
          - do_not_apply
         default: 'apply'
       custom_device_name:
-        description: 'Custom device name (optional)'
+        description: '自定义设备名称（可选）'
         required: false
       custom_version:
-        description: 'Custom version (optional)'
+        description: '自定义版本（可选）'
         required: false
 
 jobs:
@@ -34,113 +34,123 @@ jobs:
       actions: write
 
     steps:
-    - name: Checkout repository
+    - name: 检出代码仓库
       uses: actions/checkout@v4
 
-    - name: Set up Java
+    - name: 设置 Java 环境
       uses: actions/setup-java@v4
       with:
         distribution: 'temurin'
         java-version: '11'
 
-    - name: Install dependencies
+    - name: 安装依赖
       run: |
         sudo apt update
         sudo apt full-upgrade -y
         sudo apt install -y default-jdk zipalign p7zip-full python3 aria2
-    - name: Download services.jar
+
+    - name: 下载 services.jar
       run: |
         curl -L -C - -o services.jar "${{ github.event.inputs.services_jar_url }}"
-    - name: Check services.jar
+
+    - name: 检查 services.jar 文件
       run: |
         file_size=$(stat -c%s "services.jar")
         if [ $file_size -lt 2000000 ]; then
-          echo "Error: services.jar is too small. Download might have failed." >&2
+          echo "错误: services.jar 文件太小，可能下载失败。" >&2
           exit 1
         fi
-    - name: Clone smali repository
+
+    - name: 克隆 smali 仓库
       run: git clone --depth=1 https://github.com/JesusFreke/smali.git
 
-    - name: Build smali and baksmali
+    - name: 编译 smali 和 baksmali
       run: |
         cd smali
         ./gradlew build
-    - name: Extract services.jar
+
+    - name: 解压 services.jar
       run: 7z x services.jar -oservices
 
-    - name: Decompile services dex files if available
+    - name: 反编译 services.dex 文件（如果存在）
       run: |
         if [ -f services/classes.dex ]; then
           java -jar smali/baksmali/build/libs/baksmali.jar d -a ${{ github.event.inputs.android_api_level }} services/classes.dex -o services_classes
         else
-          echo "services/classes.dex not found, skipping decompilation."
+          echo "未找到 services/classes.dex，跳过反编译。"
         fi
         if [ -f services/classes2.dex ]; then
           java -jar smali/baksmali/build/libs/baksmali.jar d -a ${{ github.event.inputs.android_api_level }} services/classes2.dex -o services_classes2
         else
-          echo "services/classes2.dex not found, skipping decompilation."
+          echo "未找到 services/classes2.dex，跳过反编译。"
         fi
         if [ -f services/classes3.dex ]; then
           java -jar smali/baksmali/build/libs/baksmali.jar d -a ${{ github.event.inputs.android_api_level }} services/classes3.dex -o services_classes3
         else
-          echo "services/classes3.dex not found, skipping decompilation."
+          echo "未找到 services/classes3.dex，跳过反编译。"
         fi
         if [ -f services/classes4.dex ]; then
           java -jar smali/baksmali/build/libs/baksmali.jar d -a ${{ github.event.inputs.android_api_level }} services/classes4.dex -o services_classes4
         else
-          echo "services/classes4.dex not found, skipping decompilation."
+          echo "未找到 services/classes4.dex，跳过反编译。"
         fi
         if [ -f services/classes5.dex ]; then
           java -jar smali/baksmali/build/libs/baksmali.jar d -a ${{ github.event.inputs.android_api_level }} services/classes5.dex -o services_classes5
         else
-          echo "services/classes5.dex not found, skipping decompilation."
+          echo "未找到 services/classes5.dex，跳过反编译。"
         fi
-    - name: Backup smali files
+
+    - name: 备份 smali 文件
       run: |
-        cp -r services_classes services_classes_backup || echo "services_classes directory not found, skipping backup."
-        cp -r services_classes2 services_classes2_backup || echo "services_classes2 directory not found, skipping backup."
-        cp -r services_classes3 services_classes3_backup || echo "services_classes3 directory not found, skipping backup."
-        cp -r services_classes4 services_classes4_backup || echo "services_classes4 directory not found, skipping backup."
-        cp -r services_classes5 services_classes5_backup || echo "services_classes5 directory not found, skipping backup."
-    - name: Modify services smali files with core patch
+        cp -r services_classes services_classes_backup || echo "未找到 services_classes 目录，跳过备份。"
+        cp -r services_classes2 services_classes2_backup || echo "未找到 services_classes2 目录，跳过备份。"
+        cp -r services_classes3 services_classes3_backup || echo "未找到 services_classes3 目录，跳过备份。"
+        cp -r services_classes4 services_classes4_backup || echo "未找到 services_classes4 目录，跳过备份。"
+        cp -r services_classes5 services_classes5_backup || echo "未找到 services_classes5 目录，跳过备份。"
+
+    - name: 应用核心补丁修改 smali 文件
       if: ${{ github.event.inputs.core_patch == 'apply' }}
       run: |
         python3 services_patch.py
-    - name: Modify services smali files without core patch
+
+    - name: 不应用核心补丁修改 smali 文件
       if: ${{ github.event.inputs.core_patch == 'do_not_apply' }}
       run: |
         python3 nservices_patch.py
-    - name: Recompile services dex files
+
+    - name: 重新编译 services dex 文件
       run: |
         if [ -d services_classes ]; then
           java -jar smali/smali/build/libs/smali.jar a -a ${{ github.event.inputs.android_api_level }} services_classes -o services/classes.dex
         else
-          echo "services_classes directory not found, skipping recompilation."
+          echo "未找到 services_classes 目录，跳过重新编译。"
         fi
         if [ -d services_classes2 ]; then
           java -jar smali/smali/build/libs/smali.jar a -a ${{ github.event.inputs.android_api_level }} services_classes2 -o services/classes2.dex
         else
-          echo "services_classes2 directory not found, skipping recompilation."
+          echo "未找到 services_classes2 目录，跳过重新编译。"
         fi
         if [ -d services_classes3 ]; then
           java -jar smali/smali/build/libs/smali.jar a -a ${{ github.event.inputs.android_api_level }} services_classes3 -o services/classes3.dex
         else
-          echo "services_classes3 directory not found, skipping recompilation."
+          echo "未找到 services_classes3 目录，跳过重新编译。"
         fi
         if [ -d services_classes4 ]; then
           java -jar smali/smali/build/libs/smali.jar a -a ${{ github.event.inputs.android_api_level }} services_classes4 -o services/classes4.dex
         else
-          echo "services_classes4 directory not found, skipping recompilation."
+          echo "未找到 services_classes4 目录，跳过重新编译。"
         fi
         if [ -d services_classes5 ]; then
           java -jar smali/smali/build/libs/smali.jar a -a ${{ github.event.inputs.android_api_level }} services_classes5 -o services/classes5.dex
         else
-          echo "services_classes5 directory not found, skipping recompilation."
+          echo "未找到 services_classes5 目录，跳过重新编译。"
         fi
-    - name: Repack services.jar
+
+    - name: 打包服务文件 services.jar
       run: |
         7z a -tzip modified_services.jar -r services/*
-    - name: Upload modified services.jar
+
+    - name: 上传修改后的 services.jar
       uses: actions/upload-artifact@v3
       with:
         name: modified_services.jar
