@@ -1,4 +1,4 @@
-name: Modify Services
+name: Modify services_jar
 
 on:
   workflow_dispatch:
