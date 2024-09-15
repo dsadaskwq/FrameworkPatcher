@@ -147,10 +147,21 @@ jobs:
 
     - name: Repack services.jar
       run: |
-        7z a -tzip modified_services.jar -r services/*
+        # 从原始 services.jar 解压除 .dex 文件以外的其他文件
+        7z x services.jar -oservices_temp "*.dex" -xr!*
+
+        # 将重新编译的 .dex 文件移到临时目录
+        mv services/classes.dex services_temp/
+        mv services/classes2.dex services_temp/ || echo "classes2.dex not found, skipping."
+        mv services/classes3.dex services_temp/ || echo "classes3.dex not found, skipping."
+        mv services/classes4.dex services_temp/ || echo "classes4.dex not found, skipping."
+        mv services/classes5.dex services_temp/ || echo "classes5.dex not found, skipping."
+
+        # 使用 7z 将所有文件重新打包回 services.jar
+        7z a -tzip services_new.jar -r services_temp/*
 
     - name: Upload modified services.jar
       uses: actions/upload-artifact@v3
       with:
         name: modified_services.jar
-        path: modified_services.jar
+        path: services_new.jar
