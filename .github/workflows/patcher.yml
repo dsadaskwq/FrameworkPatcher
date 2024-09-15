@@ -1,3 +1,13 @@
+
+Navigation Menu
+
+代码
+拉取请求
+操作
+Modify Services
+Modify Services #3
+本次运行的工作流程文件
+.github/workflows/patcher.yml at e662f7b
 name: Modify Services
 
 on:
@@ -48,7 +58,6 @@ jobs:
         sudo apt update
         sudo apt full-upgrade -y
         sudo apt install -y default-jdk zipalign p7zip-full python3 aria2
-
     - name: Download services.jar
       run: |
         curl -L -C - -o services.jar "${{ github.event.inputs.services_jar_url }}"
@@ -59,7 +68,6 @@ jobs:
           echo "Error: services.jar is too small. Download might have failed." >&2
           exit 1
         fi
-
     - name: Clone smali repository
       run: git clone --depth=1 https://github.com/JesusFreke/smali.git
 
@@ -67,7 +75,6 @@ jobs:
       run: |
         cd smali
         ./gradlew build
-
     - name: Extract services.jar
       run: 7z x services.jar -oservices
 
@@ -98,7 +105,6 @@ jobs:
         else
           echo "services/classes5.dex not found, skipping decompilation."
         fi
-
     - name: Backup smali files
       run: |
         cp -r services_classes services_classes_backup || echo "services_classes directory not found, skipping backup."
@@ -106,17 +112,14 @@ jobs:
         cp -r services_classes3 services_classes3_backup || echo "services_classes3 directory not found, skipping backup."
         cp -r services_classes4 services_classes4_backup || echo "services_classes4 directory not found, skipping backup."
         cp -r services_classes5 services_classes5_backup || echo "services_classes5 directory not found, skipping backup."
-
     - name: Modify services smali files with core patch
       if: ${{ github.event.inputs.core_patch == 'apply' }}
       run: |
         python3 services_patch.py
-
     - name: Modify services smali files without core patch
       if: ${{ github.event.inputs.core_patch == 'do_not_apply' }}
       run: |
         python3 nservices_patch.py
-
     - name: Recompile services dex files
       run: |
         if [ -d services_classes ]; then
@@ -144,24 +147,11 @@ jobs:
         else
           echo "services_classes5 directory not found, skipping recompilation."
         fi
-
     - name: Repack services.jar
       run: |
-        # 从原始 services.jar 解压除 .dex 文件以外的其他文件
-        7z x services.jar -oservices_temp "*.dex" -xr!*
-
-        # 将重新编译的 .dex 文件移到临时目录
-        mv services/classes.dex services_temp/
-        mv services/classes2.dex services_temp/ || echo "classes2.dex not found, skipping."
-        mv services/classes3.dex services_temp/ || echo "classes3.dex not found, skipping."
-        mv services/classes4.dex services_temp/ || echo "classes4.dex not found, skipping."
-        mv services/classes5.dex services_temp/ || echo "classes5.dex not found, skipping."
-
-        # 使用 7z 将所有文件重新打包回 services.jar
-        7z a -tzip services_new.jar -r services_temp/*
-
+        7z a -tzip modified_services.jar -r services/*
     - name: Upload modified services.jar
       uses: actions/upload-artifact@v3
       with:
         name: modified_services.jar
-        path: services_new.jar
+        path: modified_services.jar
