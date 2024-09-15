@@ -1,0 +1,186 @@
+name: Modify services_jar1
+
+on:
+  workflow_dispatch:
+    inputs:
+      services_jar_url:
+        description: '下载 services.jar 的 地址URL'
+        required: true
+      android_api_level:
+        description: 'Android API 级别'
+        required: true
+        default: '30'
+      core_patch:
+        description: '核心补丁 应用/不应用'
+        required: true
+        type: choice
+        options:
+         - apply
+         - do_not_apply
+        default: 'apply'
+      custom_device_name:
+        description: '自定义设备名称（可选）'
+        required: false
+      custom_version:
+        description: '自定义版本（可选）'
+        required: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: write
+      actions: write
+
+    steps:
+    - name: 检出代码仓库
+      uses: actions/checkout@v4
+
+    - name: 设置 Java 环境
+      uses: actions/setup-java@v4
+      with:
+        distribution: 'temurin'
+        java-version: '11'
+
+    - name: 安装依赖
+      run: |
+        sudo apt update
+        sudo apt full-upgrade -y
+        sudo apt install -y default-jdk zipalign p7zip-full python3 aria2
+
+    - name: 下载 services.jar
+      run: |
+        curl -L -C - -o services.jar "${{ github.event.inputs.services_jar_url }}"
+
+    - name: 检查 services.jar 文件
+      run: |
+        file_size=$(stat -c%s "services.jar")
+        if [ $file_size -lt 2000000 ]; then
+          echo "错误: services.jar 文件太小，可能下载失败。" >&2
+          exit 1
+        fi
+
+    - name: 克隆 smali 仓库
+      run: git clone --depth=1 https://github.com/JesusFreke/smali.git
+
+    - name: 编译 smali 和 baksmali
+      run: |
+        cd smali
+        ./gradlew build
+
+    - name: 解压 services.jar
+      run: 7z x services.jar -oservices
+
+    - name: 反编译 services.dex 文件（如果存在）
+      run: |
+        if [ -f services/classes.dex ]; then
+          java -jar smali/baksmali/build/libs/baksmali.jar d -a ${{ github.event.inputs.android_api_level }} services/classes.dex -o services_classes
+        else
+          echo "未找到 services/classes.dex，跳过反编译。"
+        fi
+        if [ -f services/classes2.dex ]; then
+          java -jar smali/baksmali/build/libs/baksmali.jar d -a ${{ github.event.inputs.android_api_level }} services/classes2.dex -o services_classes2
+        else
+          echo "未找到 services/classes2.dex，跳过反编译。"
+        fi
+        if [ -f services/classes3.dex ]; then
+          java -jar smali/baksmali/build/libs/baksmali.jar d -a ${{ github.event.inputs.android_api_level }} services/classes3.dex -o services_classes3
+        else
+          echo "未找到 services/classes3.dex，跳过反编译。"
+        fi
+        if [ -f services/classes4.dex ]; then
+          java -jar smali/baksmali/build/libs/baksmali.jar d -a ${{ github.event.inputs.android_api_level }} services/classes4.dex -o services_classes4
+        else
+          echo "未找到 services/classes4.dex，跳过反编译。"
+        fi
+        if [ -f services/classes5.dex ]; then
+          java -jar smali/baksmali/build/libs/baksmali.jar d -a ${{ github.event.inputs.android_api_level }} services/classes5.dex -o services_classes5
+        else
+          echo "未找到 services/classes5.dex，跳过反编译。"
+        fi
+
+    - name: 备份 smali 文件
+      run: |
+        cp -r services_classes services_classes_backup || echo "未找到 services_classes 目录，跳过备份。"
+        cp -r services_classes2 services_classes2_backup || echo "未找到 services_classes2 目录，跳过备份。"
+        cp -r services_classes3 services_classes3_backup || echo "未找到 services_classes3 目录，跳过备份。"
+        cp -r services_classes4 services_classes4_backup || echo "未找到 services_classes4 目录，跳过备份。"
+        cp -r services_classes5 services_classes5_backup || echo "未找到 services_classes5 目录，跳过备份。"
+
+    - name: 应用services核心补丁修改 smali 文件
+      if: ${{ github.event.inputs.core_patch == 'apply' }}
+      run: |
+        python3 services_patch.py
+
+    - name: 不应用services核心补丁修改 smali 文件
+      if: ${{ github.event.inputs.core_patch == 'do_not_apply' }}
+      run: |
+        python3 nservices_patch.py
+
+    - name: 重新编译 services dex 文件
+      run: |
+        if [ -d services_classes ]; then
+          java -jar smali/smali/build/libs/smali.jar a -a ${{ github.event.inputs.android_api_level }} services_classes -o services/classes.dex
+        else
+          echo "未找到 services_classes 目录，跳过重新编译。"
+        fi
+        if [ -d services_classes2 ]; then
+          java -jar smali/smali/build/libs/smali.jar a -a ${{ github.event.inputs.android_api_level }} services_classes2 -o services/classes2.dex
+        else
+          echo "未找到 services_classes2 目录，跳过重新编译。"
+        fi
+        if [ -d services_classes3 ]; then
+          java -jar smali/smali/build/libs/smali.jar a -a ${{ github.event.inputs.android_api_level }} services_classes3 -o services/classes3.dex
+        else
+          echo "未找到 services_classes3 目录，跳过重新编译。"
+        fi
+        if [ -d services_classes4 ]; then
+          java -jar smali/smali/build/libs/smali.jar a -a ${{ github.event.inputs.android_api_level }} services_classes4 -o services/classes4.dex
+        else
+          echo "未找到 services_classes4 目录，跳过重新编译。"
+        fi
+        if [ -d services_classes5 ]; then
+          java -jar smali/smali/build/libs/smali.jar a -a ${{ github.event.inputs.android_api_level }} services_classes5 -o services/classes5.dex
+        else
+          echo "未找到 services_classes5 目录，跳过重新编译。"
+        fi
+
+    - name: 打包服务文件 services.jar
+      run: |
+        cd services
+        7z a -tzip ../services_new.zip *
+        cd ..
+   
+    - name: Align the zips
+      run: |
+        zipalign -f -p -v -z 4 services_new.zip aligned_services.jar
+    
+    - name: Copy aligned jars to Magisk module
+      run: |
+        mkdir -p magisk_module/system/framework
+        cp aligned_services.jar magisk_module/system/framework/services.jar
+ 
+    - name: convert dex2oat
+      run: |
+        cp dex2oat.sh magisk_module/system/framework/
+        cp dex2oat64 magisk_module/system/framework/
+        chmod +x magisk_module/system/framework/dex2oat64
+        bash magisk_module/system/framework/dex2oat.sh
+        rm magisk_module/system/framework/dex2oat.sh
+        rm magisk_module/system/framework/dex2oat64
+       
+    - name: Zip Magisk module
+      run: |
+        cd magisk_module
+        zip -r ../moded_framework_services.zip *
+        cd ..
+        mkdir -p out
+        chmod +w moded_framework_services.zip
+        mv moded_framework_services.zip out/
+
+    - name: 上传修改后的 services.jar
+      uses: actions/upload-artifact@v3
+      with:
+        name: moded_framework_services.zip
+        path: moded_framework_services.zip
